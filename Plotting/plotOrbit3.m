@@ -1,5 +1,19 @@
-function [] = plotOrbit3(RAAN, inc, omega, p, e, theta_star, color, scale, grade, c,arrow,W)
-    
+function [] = plotOrbit3(RAAN, inc, omega, p, e, theta_star, color, scale_arr, grade, c,arrow,W)
+    arguments
+        RAAN % Right ascension of ascending node
+        inc % Inclination
+        omega % Argument of periapsis
+        p % Semilatus rectum: p = a * (1 - e ^ 2)
+        e % Eccentricity
+        theta_star % True anomalies to plot orbit at
+        color = "-" % Color of orbit line (default value of "-" uses auto chosen color)
+        scale_arr = 1 % Scale of arrows
+        grade = 1 % Arrow length multiplier
+        c = [0, 0, 0] % Location of primary body
+        arrow = true % include arrows?
+        W = 1 % Linewidth
+    end
+
     r_vec_xyz = zeros(3,length(theta_star));
     for n=1:length(theta_star)
         theta = theta_star(n) + omega;
@@ -41,7 +55,7 @@ function [] = plotOrbit3(RAAN, inc, omega, p, e, theta_star, color, scale, grade
         
         % Plot arrowheads only (no body)
         hold on
-        quiver3(x(idx), y(idx), z(idx), vx(idx), vy(idx), vz(idx), scale, color(1), 'MaxHeadSize', 1, 'AutoScale', 'off');  % Set 0 for arrow body size   
+        quiver3(x(idx), y(idx), z(idx), vx(idx), vy(idx), vz(idx), scale_arr, color(1), 'MaxHeadSize', 1, 'AutoScale', 'off');  % Set 0 for arrow body size   
     end
     hold on
     

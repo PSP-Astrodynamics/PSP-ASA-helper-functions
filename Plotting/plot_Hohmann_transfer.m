@@ -1,6 +1,7 @@
 function [] = plot_Hohmann_transfer(thetastar_0, ae_sc, orbit_names, wait_times, delta_v, objects, mu, N, title_text, r_scale, units)
-%PLOT_HOHMANN_TRANSFER Summary of this function goes here
-%   Detailed explanation goes here
+%PLOT_HOHMANN_TRANSFER plot a Hohmann transfer (or chain of them) in 2D
+%   Detailed Hohmann transfer plotting function to plot chains of Hohmann
+%   transfers including wait times and plotting of maneuvers
 
 n = numel(wait_times);
 
@@ -90,7 +91,7 @@ for m = 1 : n
         quiver(x_travel(end) / r_scale, y_travel(end) / r_scale, out_burn(1), out_burn(2), 0.5, "filled", Color="r", LineWidth=1.2, HandleVisibility="off", MaxHeadSize=1.5);
     end
 end
-[x_0, y_0, ~] = r_tspan(a_sc(1), e_sc(1), 0, [0,0], mu, 1);
+[x_0, y_0, ~] = r_tspan(a_sc(1), e_sc(1), thetastar_0, [0,0], mu, 1); hold on;
 scatter(x_0 / r_scale, y_0 / r_scale, "green", "o", LineWidth = 1.5, DisplayName="Start"); hold on
 scatter(x_travel(end) / r_scale, y_travel(end) / r_scale, "red", "x", LineWidth = 1.5, DisplayName="End"); hold on
 legend(Location="eastoutside")
@@ -98,7 +99,6 @@ xlabel(sprintf("X [%s]", units))
 ylabel(sprintf("Y [%s]", units))
 title(title_text)
 
-hold off
 axis equal
 grid on
 

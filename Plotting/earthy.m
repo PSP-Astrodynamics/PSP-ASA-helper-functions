@@ -1,4 +1,10 @@
 function [] = earthy(R, Planet, opaque,c)
+    arguments
+        R % Radius of planet
+        Planet % {"Earth", "Sun", "Moon"} Texture map
+        opaque = 1 % Opacity of planet (alpha value)
+        c = [0, 0, 0] % Location of planet center
+    end
     npanels = 180;   % Number of globe panels around the equator
     % opaque = alpha   = 0.25;     % Globe transparency level, 1 = opaque, through 0 = invisible
     alpha = opaque;
@@ -21,7 +27,7 @@ function [] = earthy(R, Planet, opaque,c)
     
     %% Create wireframe globe (without displaying edges)
     [x, y, z] = ellipsoid(0, 0, 0, erad, erad, prad, npanels);
-    globe = surf(x+c(1), y+c(2), -z+c(3), 'FaceColor', 'none', 'EdgeColor', 'none'); % No edges
+    globe = surf(x+c(1), y+c(2), -z+c(3), 'FaceColor', 'none', 'EdgeColor', 'none', 'DisplayName',Planet); % No edges
 
     %% Texturemap the globe
     % Load Earth image for texture mapping
