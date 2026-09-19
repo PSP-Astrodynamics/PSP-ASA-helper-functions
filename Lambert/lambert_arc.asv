@@ -1,0 +1,150 @@
+function [a, lambert_type, space_triangle_info, transfer_info, lambert_solve_info] = lambert_arc(rvec_1, rvec_2, TA, ToF, minus_orbit_info, plus_orbit_info, options)
+%LAMBERT_ARC Summary of this function goes here
+%   Only with planar orbits
+arguments
+    rvec_1 % [] nondim so mu = 1
+    rvec_2 % [] nondim so mu = 1
+    TA % [rad] in [0, 2 * pi]
+    ToF % []
+    minus_orbit_info % has fields a, e
+    plus_orbit_info % has fields a, e
+    options.ToF_equality_tol = 1e-4
+    options.plot = true
+end
+
+mu = 1; % assume nondimensionalized
+
+r_1 = norm(rvec_1);
+r_2 = norm(rvec_2);
+space_triangle_info.r_1 = r_1;
+space_triangle_info.r_2 = r_2;
+
+% Space Triangle
+[c, s, a_m] = calculate_space_triangle(r_1, r_2, TA);
+space_triangle_info.c = c;
+space_triangle_info.s = s;
+space_triangle_info.a_m = a_m;
+
+% ToF special cases
+ToF_min = ToF_min_energy(r_1, r_2, s, c, a_m);
+ToF_par = ToF_parabolic(s, c);
+
+% Determine type
+lambert_type = LambertType.determine_lambert_type(TA, ToF, ToF_min, ToF_par, ToF_equality_tol = options.ToF_equality_tol);
+% display(lambert_type)
+
+[a, lambert_solve_info] = lambert_battin_method(r_1, r_2, ToF, TA, lambert_type);
+transfer_info.a = a;
+
+% Select alpha/beta
+[alpha, beta, alpha_0, beta_0] = select_alpha_beta(s, c, a, lambert_type);
+space_triangle_info.alpha = alpha;
+space_triangle_info.beta = beta;
+space_triangle_info.alpha_0 = alpha_0;
+space_triangle_info.beta_0 = beta_0;
+transfer_info.delta_conic_anomaly = alpha - beta;
+
+% Calculate p 
+if lambert_type.conic_type == "Ellipse"
+    p = 4 * a * (s - r_1) * (s - r_2) / c ^ 2 * sin((alpha + beta) / 2) ^ 2;
+elseif lambert_type.conic_type == "Hyperbola"
+    p = 4 * abs(a) * (s - r_1) * (s - r_2) / c ^ 2 * sinh((alpha + beta) / 2) ^ 2;
+end
+transfer_info.p = p;
+e = sqrt(1 - p / a);
+transfer_info.e = e;
+
+% Determine ascension at departure, arrival
+[thetastar, ascension] = lambert_determine_ascension([r_1; r_2], e, p, TA);
+% Make nicer for plotting
+if thetastar(1) > thetastar(2)
+    thetastar(2) = thetastar(2) + 2 * pi;
+end
+
+% Calculate argument of periapsis
+omega = minus_orbit_info.omega;% - thetastar(1);
+transfer_info.omega = omega;
+
+% Fill in info on before and after orbits
+minus_orbit_info.p = minus_orbit_info.a * (1 - minus_orbit_info.e ^ 2);
+minus_orbit_info.thetastar = acos(1 / minus_orbit_info.e * (minus_orbit_info.p / r_1 - 1));
+plus_orbit_info.p = plus_orbit_info.a * (1 - plus_orbit_info.e ^ 2);
+plus_orbit_info.thetastar = acos(1 / plus_orbit_info.e * (plus_orbit_info.p / r_1 - 1));
+
+% Determine maneuvers (assuming coplanar)
+transfer_info.maneuver_1 = planar_maneuver([minus_orbit_info.a; a], r_1, [minus_orbit_info.e; e], [minus_orbit_info.ascension; ascension(1)]);
+transfer_info.maneuver_2 = planar_maneuver([a; plus_orbit_info.a], r_2, [e; plus_orbit_info.e], [ascension(2); plus_orbit_info.ascension]);
+transfer_info.maneuver_1.thetastar(1) = minus_orbit_info.thetastar;
+transfer_info.maneuver_1.thetastar(2) = thetastar(1);
+transfer_info.maneuver_2.thetastar(1) = thetastar(2);
+transfer_info.maneuver_2.thetastar(2) = plus_orbit_info.thetastar;
+transfer_info.total_dV = transfer_info.maneuver_1.dV + transfer_info.maneuver_2.dV;
+
+minus_orbit_info.vvec = transfer_info.maneuver_1.v(1) * make_R2(transfer_info.maneuver_1.thetastar(2) + omega) * [sin(transfer_info.maneuver_1.gamma(1)); cos(transfer_info.maneuver_1.gamma(1))];
+plus_orbit_info.vvec = transfer_info.maneuver_2.v(2) * make_R2(transfer_info.maneuver_2.thetastar(1) + omega) * [sin(transfer_info.maneuver_2.gamma(2)); cos(transfer_info.maneuver_2.gamma(2))];
+
+rvec_1_planar = r_1 * [cos(transfer_info.maneuver_1.thetastar(2) + omega); sin(transfer_info.maneuver_1.thetastar(2) + omega)];
+rvec_2_planar = r_2 * [cos(transfer_info.maneuver_2.thetastar(1) + omega); sin(transfer_info.maneuver_2.thetastar(1) + omega)];
+transfer_info.rvec_1_planar = rvec_1_planar;
+transfer_info.rvec_2_planar = rvec_2_planar;
+
+% Determine velocities using Lagrange coefficients
+lagrange = lagrange_coefficients(r_1, r_2, a, e, ToF, transfer_info.delta_conic_anomaly);
+transfer_info.lagrange = lagrange;
+transfer_info.vvec_1_planar = (rvec_2_planar - lagrange.f * rvec_1_planar) / lagrange.g;
+transfer_info.vvec_2_planar = lagrange.fdot * rvec_1_planar + lagrange.gdot * transfer_info.vvec_1_planar;
+
+TA_ck = transfer_info.maneuver_2.thetastar(1) - transfer_info.maneuver_1.thetastar(2);
+if abs(TA_ck - TA) > 1e-5
+    error("TA not matching, defect is %.3g while tolerance is %.1g", TA_ck - TA, 1e-5)
+end
+
+% Determine phase angle
+mean_motion_plus = sqrt(mu / plus_orbit_info.a ^ 3);
+transfer_info.phase_angle = ToF * mean_motion_plus;
+
+% Package other info
+transfer_info.r_D = r_1;
+transfer_info.r_A = r_2;
+
+% Plot
+if options.plot
+    % Space Triangle Plot
+    figure
+    orbitplot2D(minus_orbit_info.a, minus_orbit_info.e, linspace(0, 2 * pi, 1000), minus_orbit_info.omega, "Initial")
+    orbitplot2D(plus_orbit_info.a, plus_orbit_info.e, linspace(0, 2 * pi, 1000), plus_orbit_info.omega, "Target")
+    quiver(0, 0, transfer_info.rvec_1_planar(1), transfer_info.rvec_1_planar(2), 1, DisplayName = "r_1")
+    quiver(0, 0, transfer_info.rvec_2_planar(1), transfer_info.rvec_2_planar(2), 1, DisplayName = "r_2")
+    plot([transfer_info.rvec_1_planar(1); transfer_info.rvec_2_planar(1)], [transfer_info.rvec_1_planar(2); transfer_info.rvec_2_planar(2)], LineWidth=1, Color="k", DisplayName="Chord")
+    title(sprintf("Space Triangle for Type %s Lambert", string(lambert_type)))
+    legend()
+    grid on
+    axis equal
+    
+
+    % Transfer Plot
+    figure
+    orbitplot2D(minus_orbit_info.a, minus_orbit_info.e, linspace(0, 2 * pi, 1000), minus_orbit_info.omega, "Initial")
+    orbitplot2D(plus_orbit_info.a, plus_orbit_info.e, linspace(0, 2 * pi, 1000), plus_orbit_info.omega, "Target")
+    orbitplot2D(a, e, linspace(thetastar(1), thetastar(2), 1000), omega, "Transfer")
+    quiver(0, 0, transfer_info.rvec_1_planar(1), transfer_info.rvec_1_planar(2), 1, DisplayName = "r_1")
+    quiver(0, 0, transfer_info.rvec_2_planar(1), transfer_info.rvec_2_planar(2), 1, DisplayName = "r_2")
+    quiver(transfer_info.rvec_1_planar(1), transfer_info.rvec_1_planar(2), transfer_info.vvec_1_planar(1), transfer_info.vvec_1_planar(2), 2, HandleVisibility = "off")
+    quiver(transfer_info.rvec_2_planar(1), transfer_info.rvec_2_planar(2), transfer_info.vvec_2_planar(1), transfer_info.vvec_2_planar(2), 2, HandleVisibility = "off")
+    quiver(transfer_info.rvec_1_planar(1), transfer_info.rvec_1_planar(2), minus_orbit_info.vvec(1), minus_orbit_info.vvec(2), 2, HandleVisibility = "off")
+    quiver(transfer_info.rvec_2_planar(1), transfer_info.rvec_2_planar(2), plus_orbit_info.vvec(1), plus_orbit_info.vvec(2), 2, HandleVisibility = "off")
+    %quiver(transfer_info.rvec_1_planar(1) + minus_orbit_info.vvec(1), transfer_info.rvec_1_planar(2) + minus_orbit_info.vvec(2), transfer_info.vvec_1_planar(1) - minus_orbit_info.vvec(1), transfer_info.vvec_1_planar(2) - minus_orbit_info.vvec(2), 2, HandleVisibility = "off")
+    %quiver(transfer_info.rvec_2_planar(1) + plus_orbit_info.vvec(1), transfer_info.rvec_2_planar(2) + plus_orbit_info.vvec(2), transfer_info.vvec_2_planar(1) - plus_orbit_info.vvec(1), transfer_info.vvec_2_planar(2) - plus_orbit_info.vvec(2), 2, HandleVisibility = "off")
+    scatter(0, 0, 30, "blue", "filled", "o", DisplayName="Attracting Focus")
+    scatter(2 * a * e * cos(omega + pi), 2 * a * e * sin(omega + pi), 30, "red", "filled", "o", DisplayName="Vacant Focus")
+    plot([transfer_info.rvec_1_planar(1); transfer_info.rvec_2_planar(1)], [transfer_info.rvec_1_planar(2); transfer_info.rvec_2_planar(2)], LineWidth=1, Color="k", DisplayName="Chord")
+    grid on
+    axis equal
+    legend()
+    xlabel("X []")
+    ylabel("Y []")
+    title(sprintf("Type %s Lambert Transfer", string(lambert_type)))
+    subtitle("Total \Delta" + sprintf("V %.3f []", transfer_info.total_dV))
+end
+
+end

@@ -1,4 +1,4 @@
-function [] = plotOrbit3(RAAN, inc, omega, p, e, theta_star, color, scale_arr, grade, c,arrow,W)
+function [] = plotOrbit3(RAAN, inc, omega, p, e, theta_star, color, scale_arr, grade, c, arrow, W, linestyle)
     arguments
         RAAN % Right ascension of ascending node
         inc % Inclination
@@ -12,6 +12,7 @@ function [] = plotOrbit3(RAAN, inc, omega, p, e, theta_star, color, scale_arr, g
         c = [0, 0, 0] % Location of primary body
         arrow = true % include arrows?
         W = 1 % Linewidth
+        linestyle = "-"
     end
 
     r_vec_xyz = zeros(3,length(theta_star));
@@ -35,9 +36,9 @@ function [] = plotOrbit3(RAAN, inc, omega, p, e, theta_star, color, scale_arr, g
 
     %plot3(x,y,z, color, LineWidth=W)
     if color == "-"
-        plot3(x,y,z, "LineWidth", W) % works the same as before just adjusts it to plot colors properly
+        plot3(x,y,z, "LineWidth", W, 'LineStyle',linestyle) % works the same as before just adjusts it to plot colors properly
     else
-        plot3(x,y,z, color, "LineWidth", W) % works the same as before just adjusts it to plot colors properly
+        plot3(x,y,z, color, "LineWidth", W, 'LineStyle',linestyle) % works the same as before just adjusts it to plot colors properly
     end
     hold on
     if (arrow == 1)
