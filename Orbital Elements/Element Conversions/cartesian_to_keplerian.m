@@ -1,4 +1,10 @@
-function [x_keplerian, nu] = cartesian_to_keplerian(x_cartesian, Khat, Ihat, mu)
+function [x_keplerian, nu] = cartesian_to_keplerian(x_cartesian, mu, Khat, Ihat)
+arguments
+    x_cartesian
+    mu
+    Khat = [0; 0; 1] % z direction
+    Ihat = [1; 0; 0] % x direction
+end
 %CARTESIAN_TO_KEPLERIAN Summary of this function goes here
 %   Detailed explanation goes here
 
