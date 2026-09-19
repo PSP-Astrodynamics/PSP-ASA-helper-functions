@@ -53,22 +53,22 @@ char_star.v = char_star.l / char_star.t; %[km / s]
 
 %% Prepare Initial and Final Position and Velocity Arrays
 % Nondimensionalize
-tf = year_to_sec(t0_yr) / char_star.t;
+t0 = year_to_sec(t0_yr) / char_star.t;
 ToF = year_to_sec(ToF_yr) / char_star.t;
 
 % Get all combinations of initial time and time of flight that must be solved for
-tf_ToF_combs = combinations(tf, ToF);
-tf_combs = tf_ToF_combs.tf';
-ToF_combs = tf_ToF_combs.ToF';
+t0_ToF_combs = combinations(t0, ToF);
+t0_combs = t0_ToF_combs.t0';
+ToF_combs = t0_ToF_combs.ToF';
 
-Q = height(tf_ToF_combs); % Number of Lambert solves
+Q = height(t0_ToF_combs); % Number of Lambert solves
 
 %%
 % Get states at start of transfer (after t0)
 x0_keplerian_E = xepoch_keplerian_E .* ones([6, Q]);
-x0_keplerian_E(6, :) = x0_keplerian_E(6, :) + sqrt(1 ./ x0_keplerian_E(1, :) .^ 3) .* (tf_combs - ToF_combs);
+x0_keplerian_E(6, :) = x0_keplerian_E(6, :) + sqrt(1 ./ x0_keplerian_E(1, :) .^ 3) .* (t0_combs - ToF_combs);
 xf_keplerian_M = xepoch_keplerian_M .* ones([6, Q]);
-xf_keplerian_M(6, :) = xf_keplerian_M(6, :) + sqrt(1 ./ xf_keplerian_M(1, :) .^ 3) .* tf_combs;
+xf_keplerian_M(6, :) = xf_keplerian_M(6, :) + sqrt(1 ./ xf_keplerian_M(1, :) .^ 3) .* t0_combs;
 
 % Convert keplerian state to cartesian
 x0_cartesian_E = keplerian_to_cartesian_array(x0_keplerian_E, [], 1);
